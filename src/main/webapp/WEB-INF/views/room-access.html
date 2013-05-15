@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title th:text="'Sermonis - Accessing Room ' + *{roomId}">Seremonis</title>
+    	<script type="text/javascript" src="../resources/js/jquery.js"></script>
+    	<script type="text/javascript" src="../resources/js/jquery.cookie.js"></script>
+		<script type="text/javascript" src="../resources/js/jquery.atmosphere.js"></script>
+		<script type="text/javascript" src="../resources/js/jquery.titlealert.js"></script>
+  		<script type="text/javascript" src="../resources/js/bootstrap-colorpicker.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.0.6/angular.min.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.0.6/angular-sanitize.min.js"></script>
+		<script type="text/javascript" src="../resources/js/Markdown.Converter.js"></script>
+		<script type="text/javascript" src="../resources/js/Markdown.Sanitizer.js"></script>
+    	<link href="../resources/css/bootstrap.css" rel="stylesheet" />
+   		<link href="../resources/css/bootstrap-responsive.css" rel="stylesheet" />
+   		<link href="../resources/css/bootstrap-colorpicker.css" rel="stylesheet" />
+   		<link href='http://fonts.googleapis.com/css?family=Fondamento' rel='stylesheet' type='text/css' />
+   		<style type="text/css">
+   			#sermonis {
+   				font-family: 'Fondamento', cursive;
+   				float: right;
+   				margin: 20px;
+   				font-size: 32px;
+   				background: -webkit-linear-gradient(#eee, #aaa);
+  				-webkit-background-clip: text;
+  				-webkit-text-fill-color: transparent;
+   			}
+	   		body {
+		   		background-color: rgb(39, 40, 34);
+		   		color: white;
+		   		padding: 5px;
+	   		}
+	   		input#password {
+	   			margin: 0 auto;
+	   			width: 250px;
+	   			background-color: rgb(60, 61, 52);
+	   			color: white;
+	   			border: 0px;
+	   		}
+   		</style>
+	</head>
+	<body>
+		<div id="sermonis">sermon.is</div>
+		<div class="container" style="width: 66%; margin: 0 auto; text-align: center">
+			<h3>You're about to enter a password protected room named <i th:text="*{roomId}" /></h3>
+			<div class="navbar">
+				<div class="span12" style="width: 95%">
+					<div class="inline">
+						<form method="post">
+							<div class="inline">
+								<input id="password" type="text" name="password" style="width: 99%" 
+									placeholder="Please provide the administrator password" />
+								<input type="submit" class="btn btn-inverse" value="Join" />
+							</div>							
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

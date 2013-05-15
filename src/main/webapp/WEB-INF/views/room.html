@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html ng-app="seremonis">
+	<head>
+		<title th:text="'Sermonis - Room ' + *{roomId}">Seremonis</title>
+    	<script type="text/javascript" src="resources/js/jquery.js"></script>
+    	<script type="text/javascript" src="resources/js/jquery.cookie.js"></script>
+		<script type="text/javascript" src="resources/js/jquery.atmosphere.js"></script>
+		<script type="text/javascript" src="resources/js/jquery.titlealert.js"></script>
+  		<script type="text/javascript" src="resources/js/bootstrap-colorpicker.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.1.4/angular.min.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.1.4/angular-sanitize.min.js"></script>
+		<script type="text/javascript" src="resources/js/Markdown.Converter.js"></script>
+		<script type="text/javascript" src="resources/js/Markdown.Sanitizer.js"></script>
+		<script type="text/javascript" th:inline="javascript">
+		/*<![CDATA[*/
+		var roomId = [[${roomId}]];
+        var app = angular.module('seremonis', ['ngSanitize']);
+        
+        // on return key, add the chat message 
+        app.directive('onSubmit', function() {
+            return function(scope, elm, attrs) {
+                elm.bind('keyup', function(evt) {
+                	if (evt.which == 13) {
+                		scope.$apply(attrs.onSubmit)
+                		scope.addMessage();
+                		scope.$apply(attrs.onAfterSubmit);
+                	}
+                });
+            };
+        });
+		
+        /* Message controller */
+		function MessagesCtrl($scope) {
+			$scope.status = "";
+			// the initial messages in that room 
+			$scope.messages = jQuery.parseJSON([[${messagesJson}]]);
+			$scope.user = "";
+			$scope.color = "";
+			$scope.converter = new Markdown.getSanitizingConverter();
+			$scope.useMarkdown = false;
+			
+			// callback for atmosphere when receiving data over websocket 
+			$scope.atmosphereCallback = function(response) {
+	        	console.log(response);
+	            $.atmosphere.log("info", ["response.state: " + response.state]);
+	        	$.atmosphere.log("info", ["response.transport: " + response.transport]);
+	        	$.atmosphere.log("info", ["response.status: " + response.status]);
+	        	if (response.transport != "polling" && response.state == "messageReceived") {
+	            	$.atmosphere.log("info", ["response.responseBody: " + response.responseBody]);
+	            	if (response.status == 200) {
+	            		var data = jQuery.parseJSON(response.responseBody);
+	            		if (data) {
+	            			$scope.messages.push({ text : $scope.formatText(data), fromUser : data['fromUser'], color: data['color'], markdown: data['markdown'], thinking: data['thinking'] }); // add message to scope model 
+	            			$scope.$apply(); // refresh 
+	            			$("html, body").animate({ scrollTop: $(document).height() }, 1000);
+	            			$.titleAlert("New message!", {
+	            			    requireBlur:true,
+	            			    stopOnFocus:true,
+	            			    duration:10000,
+	            			    interval:500
+	            			});
+	            		}
+	            	}
+	        	}
+	        }
+			
+			// init the atmosphere stuff by subscribing to the correct comet url 
+			// init the username by retrieving its name from a cookie if already set or asking him for it by focusing on the field 
+			$scope.initApp = function() {
+		        $.atmosphere.subscribe("async/room-" + roomId, $scope.atmosphereCallback,
+		        		$.atmosphere.request = { transport:"websocket", fallbackTransport: 'long-polling', requestCount: 0 });
+		        $scope.user = $.cookie(roomId + "-username");
+		        if ($scope.user == null) {
+		        	do {
+		        		$scope.user = prompt("What's your name ?", '');
+		        	} while ($scope.user == null || $scope.user == '');
+		        	$.cookie(roomId + "-username", $scope.user, { expires: 365 });
+		        }
+		        $scope.color = $.cookie(roomId + "-color");
+		        if ($scope.color == null) {
+		        	$scope.color = "#fff";
+		        }
+		        $scope.useMarkdown = $.cookie(roomId + "-markdown") == 'true';
+		        $("#username").attr('disabled', 'disabled');
+		        $("#input").focus();
+			}
+			
+			// POST a message for that room 
+			$scope.addMessage = function() {
+			    $.ajax({
+					url : 'room-' + roomId,
+					headers: { 
+						Accept : 'application/json; charset=utf-8',
+						'Content-Type': 'application/json; charset=utf-8'
+					},
+					beforeSend: function(req) {
+						req.setRequestHeader('Accept', 'application/json');
+					},
+					contentType: 'application/json',
+					dataType : 'json',
+					type : 'POST',
+					data : jQuery.stringifyJSON({ roomId: roomId, text: $scope.messageText.replace(/^\/me /, ''), fromUser: $scope.user, 
+						color: $scope.color, markdown: $scope.useMarkdown, thinking: $scope.isThinking($scope.messageText) }),
+					async : false
+				});
+			    $("#input").val('');
+				$scope.messageText = '';
+			};
+			
+			$scope.changeColor = function() {
+				var cp = $("#usernameColor").colorpicker('show');
+				cp.on('changeColor', function(e) { $scope.colorModified(e.color.toHex()); });
+				$('.colorpicker').attr('style', $('.colorpicker').attr('style') + ' z-index: 99999 !important;');
+			}
+			
+			$scope.colorModified = function(c) {
+				$scope.color = c;
+				$.cookie(roomId + "-color", $scope.color, { expires: 365 });
+				$scope.$apply();
+			}
+			
+			$scope.markdown = function(s) {
+				//return $scope.converter.makeHtml(s).replace(/<[/]?p>/g, '');
+				return $scope.converter.makeHtml(s).replace(/^<p>/, '').replace(/<\/p>$/, '');
+			}
+			
+			$scope.formatText = function(data) {
+				var txt = data['text'];
+				if (data['markdown']) {
+					txt = txt.replace(/img:([^\s]+)(\s+|$)/g, ' ![img]($1) ');
+					txt = $scope.markdown(txt);
+				} else {
+					txt = txt.replace(/\s+img:([^\s]+)\s+/g, ' <img src="$1" /> ');
+					data['markdown'] = true;
+				}
+				return txt;
+			}
+			
+			$scope.isThinking = function(s) {
+				return s.match(/^\/me/) != null;
+			}
+			
+			// listen for markdown option to save in cookie.
+			$scope.$watch('useMarkdown', function(newValue, oldValue) { 
+				$.cookie(roomId + '-markdown', '' + newValue); 
+			});
+			
+			$scope.clearHistory = function() {
+				$scope.messages.length = 0;
+			}
+		}
+        // resize the browser window 
+		$(window).load(function() { $("html, body").animate({ scrollTop: $(document).height() }, 1000); });
+		/*]]>*/
+		</script>
+		<script type="text/javascript" src="resources/js/app.js"></script>
+    	<link href="resources/css/bootstrap.css" rel="stylesheet" />
+   		<link href="resources/css/bootstrap-responsive.css" rel="stylesheet" />
+   		<link href="resources/css/bootstrap-colorpicker.css" rel="stylesheet" />
+   		<link href='http://fonts.googleapis.com/css?family=Fondamento' rel='stylesheet' type='text/css' />
+   		<style type="text/css">
+   			#sermonis {
+   				font-family: 'Fondamento', cursive;
+   				float: right;
+   				margin: 20px;
+   				font-size: 32px;
+   				background: -webkit-linear-gradient(#eee, #aaa);
+  				-webkit-background-clip: text;
+  				-webkit-text-fill-color: transparent;
+   			}
+	   		body {
+		   		background-color: rgb(39, 40, 34);
+		   		color: white;
+		   		padding: 5px;
+	   		}
+	   		input, textarea {
+	   			background-color: rgb(60, 61, 52);
+	   			color: white;
+	   			border: 0px;
+	   		}
+	   		#username {
+	   			background-color: rgb(39, 40, 34);
+	   			color: white;
+	   			font-weight: bold;
+	   			cursor: pointer;
+	   		}
+	   		p { margin-bottom: 1px; }
+	   		p.thinking { font-style: italic; }
+	   		#messageZone { margin-bottom: 140px; }
+	   		pre { background-color: rgb(39, 40, 34); color: #ddd; }
+	   		.mkd {
+	   			float: right;
+	   			position: abslute;
+	   			right: 5%;
+	   			top: 20px;
+	   		}
+	   		.mkdLabel { margin-top: 10px; }
+   		</style>
+	</head>
+	<body ng-controller="MessagesCtrl" ng-init="initApp()">
+		<div id="sermonis">sermon.is</div>
+		<h2 id="welcome">Welcome to room <i th:text="*{roomId}"/>!</h2>
+		<div>
+			<div id="messageZone" class="row">
+				<div class="span12">
+					<div class="row-fluid">
+						<div id="content" class="widget widget-scrollable">
+							<p ng-repeat="message in messages" ng-class="{'thinking': message.thinking}">
+								<span class="user" style="color: {{message.color}}">{{message.fromUser}}</span> <span ng-show="!message.thinking">&#187;</span>  
+								<span class="text" ng-bind-html="formatText(message)" ng-show="message.markdown"></span>
+								<span class="text" ng-bind="message.text" ng-show="!message.markdown"></span>
+		            		</p> 
+						</div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="navbar navbar-fixed-bottom">
+				<div class="span12" style="width: 95%">
+					<div class="inline">
+						<span id="username" ng-click="changeColor()" style="color: {{color}}">{{user}}</span><input id="usernameColor" type="text" style="visibility: hidden" ng-model="color" />
+						<div class="mkd">
+							<label class="checkbox mkdLabel"><input type="checkbox" ng-model="useMarkdown" /> Markdown</label>
+							<!-- <b ng-click="clearHistory()">Clear History</b> -->
+						</div>
+					</div>
+
+					<form ng-submit="addMessage()">
+						<textarea id="input" style="width: 99%" placeholder=">> " ng-model="messageText"
+							on-submit="status = 'Sending'" on-after-submit="status = ''" ng-trim='false'></textarea>
+					</form>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

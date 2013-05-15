@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+	xmlns:context="http://www.springframework.org/schema/context"
+ 	xmlns:mongo="http://www.springframework.org/schema/data/mongo"
+	xmlns:cloud="http://schema.cloudfoundry.org/spring"
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd
+		http://www.springframework.org/schema/data/mongo http://www.springframework.org/schema/data/mongo/spring-mongo-1.1.xsd
+		http://schema.cloudfoundry.org/spring http://schema.cloudfoundry.org/spring/cloudfoundry-spring-0.8.xsd       
+        http://www.springframework.org/schema/data/repository http://www.springframework.org/schema/data/repository/spring-repository.xsd ">
+
+	<bean id="templateResolver" class="org.thymeleaf.templateresolver.ServletContextTemplateResolver">
+		<property name="prefix" value="/WEB-INF/views/" />
+		<property name="suffix" value=".html" />
+		<property name="templateMode" value="HTML5" />
+	</bean>
+	
+	<bean id="templateEngine" class="org.thymeleaf.spring3.SpringTemplateEngine">
+		<property name="templateResolver" ref="templateResolver" />
+	</bean>
+
+	<bean class="org.thymeleaf.spring3.view.ThymeleafViewResolver">
+		<property name="templateEngine" ref="templateEngine" />
+	</bean>
+
+	<bean id="mongoTemplate" class="org.springframework.data.mongodb.core.MongoTemplate">
+		<constructor-arg ref="mongoDbFactory" />
+		<!-- <constructor-arg name="databaseName" value="sermonis" /> -->
+	</bean>
+	
+<!-- 	<mongo:repositories base-package="me.grison.sermonis.repository" mongo-template-ref="mongoTemplate" /> -->
+	
+	<beans profile="default">
+		<mongo:mongo host="localhost" port="27017">
+			<mongo:options connections-per-host="5" connect-timeout="30000"
+				max-wait-time="10000" write-number="1" write-timeout="0" write-fsync="true" />
+		</mongo:mongo>
+		<mongo:db-factory id="mongoDbFactory" dbname="sermonis" mongo-ref="mongo" />
+	</beans>
+
+	<beans profile="cloud">
+		<cloud:mongo-db-factory id="mongoDbFactory" />
+	</beans>
+	
+</beans>
